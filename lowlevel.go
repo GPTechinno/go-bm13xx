@@ -23,7 +23,7 @@ func crc5(data []byte) byte {
 }
 
 func crc16(data []byte) uint16 {
-	crc16 := crc.NewHash(&crc.Parameters{Width: 16, Polynomial: 0x1021, Init: 0xD165, ReflectIn: false, ReflectOut: false, FinalXor: 0x0000})
+	crc16 := crc.NewHash(crc.CCITT)
 	return uint16(crc16.CalculateCRC(data))
 }
 
