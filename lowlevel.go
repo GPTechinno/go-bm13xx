@@ -27,14 +27,21 @@ func crc16(data []byte) uint16 {
 	return uint16(crc16.CalculateCRC(data))
 }
 
-func (c *Chain) sendCommand(cmd cmd, all bool, chipAddr byte, regAddr RegAddr, data []byte) (int, error) {
-	frame := []byte{byte(cmd), 0x05, chipAddr, byte(regAddr)}
+func (c *Chain) sendCommand(cmd cmd, all bool, chipAddr byte, regAddr byte, data []byte) (int, error) {
+	frame := []byte{byte(cmd), 0, chipAddr, regAddr}
 	if all {
 		frame[0] += 0x10
 	}
-	frame[1] = 0x05 + byte(len(data))
 	frame = append(frame, data...)
-	frame = append(frame, crc5(frame))
+	if cmd == sendJob {
+		frame[1] = byte(len(frame) + 2)
+		crc := make([]byte, 2)
+		binary.BigEndian.PutUint16(crc, crc16(frame))
+		frame = append(frame, crc...)
+	} else {
+		frame[1] = byte(len(frame) + 1)
+		frame = append(frame, crc5(frame))
+	}
 	if c.is139x {
 		frame = append([]byte{0x55, 0xAA}, frame...)
 	}
@@ -49,12 +56,12 @@ func (c *Chain) SetChipAddr(chipAddr byte) error {
 func (c *Chain) WriteRegister(all bool, chipAddr byte, regAddr RegAddr, regVal uint32) error {
 	data := make([]byte, 4)
 	binary.BigEndian.PutUint32(data, regVal)
-	_, err := c.sendCommand(writeRegister, all, chipAddr, regAddr, data)
+	_, err := c.sendCommand(writeRegister, all, chipAddr, byte(regAddr), data)
 	return err
 }
 
 func (c *Chain) ReadRegister(all bool, chipAddr byte, regAddr RegAddr) error {
-	_, err := c.sendCommand(readRegister, all, chipAddr, regAddr, nil)
+	_, err := c.sendCommand(readRegister, all, chipAddr, byte(regAddr), nil)
 	return err
 }
 
@@ -85,5 +92,25 @@ func (c *Chain) GetResponse() (uint32, byte, byte, error) {
 
 func (c *Chain) Inactive() error {
 	_, err := c.sendCommand(chainInactive, true, 0, 0, nil)
+	return err
+}
+
+type Midstate [32]byte
+
+func (c *Chain) SendJob(jobID byte, startingNonce uint32, nBits uint32, nTime uint32, merkelRoot uint32, midstates []Midstate) error {
+	var data []byte
+	value := make([]byte, 4)
+	binary.BigEndian.PutUint32(value, startingNonce)
+	data = append(data, value...)
+	binary.BigEndian.PutUint32(value, nBits)
+	data = append(data, value...)
+	binary.BigEndian.PutUint32(value, nTime)
+	data = append(data, value...)
+	binary.BigEndian.PutUint32(value, merkelRoot)
+	data = append(data, value...)
+	for _, midstate := range midstates {
+		data = append(data, midstate[:]...)
+	}
+	_, err := c.sendCommand(sendJob, false, jobID, byte(len(midstates)), data)
 	return err
 }
