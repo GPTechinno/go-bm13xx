@@ -40,12 +40,33 @@ func (c *Chain) Enumerate() error {
 	}
 }
 
+func (c *Chain) ReadAllRegisters(chipIndex int) error {
+	regs := allRegisters
+	for _, reg := range regs {
+		c.ReadRegister(false, 0, reg)
+		regVal, chipAddr, regAddr, err := c.GetResponse()
+		if err != nil {
+			return err
+		}
+		if regAddr != byte(reg) {
+			return fmt.Errorf("bad regAddr")
+		}
+		if chipAddr != 0x00 {
+			return fmt.Errorf("bad chipAddr")
+		}
+		c.asics[chipIndex].regs[reg] = regVal
+	}
+	return nil
+}
+
 func (c *Chain) DumpChipRegiters(chipIndex int, debug bool) error {
 	if chipIndex >= len(c.asics) || chipIndex < 0 {
 		return fmt.Errorf("bad chipIndex")
 	}
-	for addr, val := range c.asics[chipIndex].regs {
-		regDump(addr, val, debug)
+	for _, addr := range allRegisters {
+		if val, exist := c.asics[chipIndex].regs[addr]; exist {
+			regDump(addr, val, debug)
+		}
 	}
 	return nil
 }
