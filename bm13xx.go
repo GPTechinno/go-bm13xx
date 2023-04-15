@@ -59,6 +59,28 @@ func (c *Chain) ReadAllRegisters(chipIndex int) error {
 	return nil
 }
 
+func (c *Chain) ReadUnknownRegisters(chipIndex int) error {
+	regs := []RegAddr{0x1C, 0x24, 0x30, 0x34, 0x3C, 0x40, 0x88}
+	for _, reg := range regs {
+		c.ReadRegister(false, 0, reg)
+		regVal, chipAddr, regAddr, err := c.GetResponse()
+		if err != nil {
+			fmt.Printf("GetResponse error: %v\n", err)
+			continue
+		}
+		if regAddr != byte(reg) {
+			fmt.Printf("bad regAddr: %v\n", regAddr)
+			continue
+		}
+		if chipAddr != 0x00 {
+			fmt.Printf("bad chipAddr: %v\n", chipAddr)
+			continue
+		}
+		c.asics[chipIndex].regs[reg] = regVal
+	}
+	return nil
+}
+
 func (c *Chain) DumpChipRegiters(chipIndex int, debug bool) error {
 	if chipIndex >= len(c.asics) || chipIndex < 0 {
 		return fmt.Errorf("bad chipIndex")
