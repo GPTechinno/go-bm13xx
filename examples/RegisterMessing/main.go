@@ -28,6 +28,7 @@ func main() {
 	chain.Enumerate()
 	// chain.Inactive()
 	time.Sleep(time.Second)
-	chain.ReadAllRegisters(0)
+	// chain.ReadAllRegisters(0)
+	chain.ReadUnknownRegisters(0)
 	chain.DumpChipRegiters(0, false)
 }
