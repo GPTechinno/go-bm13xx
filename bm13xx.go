@@ -10,6 +10,20 @@ type Asic struct {
 	coreRegs map[CoreRegID]uint16
 }
 
+func (a Asic) addr() byte {
+	if chipAddress, exist := a.regs[ChipAddress]; exist {
+		return byte(chipAddress & 0xff)
+	}
+	return 0
+}
+
+func (a Asic) coreNum() byte {
+	if chipAddress, exist := a.regs[ChipAddress]; exist {
+		return byte((chipAddress >> 8) & 0xff)
+	}
+	return 0
+}
+
 type Chain struct {
 	port   io.ReadWriter
 	is139x bool
@@ -19,6 +33,15 @@ type Chain struct {
 func NewChain(port io.ReadWriter, is139x bool) *Chain {
 	c := &Chain{port: port, is139x: is139x}
 	return c
+}
+
+func (c *Chain) chipIndex(chipAddr byte) (int, error) {
+	for i, a := range c.asics {
+		if a.addr() == chipAddr {
+			return i, nil
+		}
+	}
+	return 0, fmt.Errorf("not found")
 }
 
 func (c *Chain) Enumerate() error {
@@ -43,9 +66,12 @@ func (c *Chain) Enumerate() error {
 }
 
 func (c *Chain) ReadAllRegisters(chipIndex int) error {
+	if chipIndex >= len(c.asics) {
+		return fmt.Errorf("chipIndex %d out of range", chipIndex)
+	}
 	regs := allRegisters
 	for _, reg := range regs {
-		c.ReadRegister(false, 0, reg)
+		c.ReadRegister(false, c.asics[chipIndex].addr(), reg)
 		regVal, chipAddr, regAddr, err := c.GetResponse()
 		if err != nil {
 			fmt.Printf("GetResponse error: %v\n", err)
@@ -63,9 +89,12 @@ func (c *Chain) ReadAllRegisters(chipIndex int) error {
 }
 
 func (c *Chain) ReadUnknownRegisters(chipIndex int) error {
+	if chipIndex >= len(c.asics) {
+		return fmt.Errorf("chipIndex %d out of range", chipIndex)
+	}
 	regs := []RegAddr{0x24, 0x30, 0x34, 0x88}
 	for _, reg := range regs {
-		c.ReadRegister(false, 0, reg)
+		c.ReadRegister(false, c.asics[chipIndex].addr(), reg)
 		regVal, chipAddr, regAddr, err := c.GetResponse()
 		if err != nil {
 			fmt.Printf("GetResponse error: %v\n", err)
@@ -84,8 +113,54 @@ func (c *Chain) ReadUnknownRegisters(chipIndex int) error {
 	return nil
 }
 
-func (c *Chain) ReadCoreRegister() {
+func (c *Chain) ReadCoreRegister(chipAddr byte, coreID uint16, coreRegID CoreRegID) (uint16, error) {
+	chipIndex, err := c.chipIndex(chipAddr)
+	if err != nil {
+		return 0, err
+	}
+	if coreID >= uint16(c.asics[chipIndex].coreNum()) {
+		return 0, fmt.Errorf("coreID %d out of range", coreID)
+	}
+	coreRegCtrlVal := uint32(0x7e003000) // something in there must contain the coreID
+	coreRegCtrlVal |= uint32(coreRegID) << 8
+	err = c.WriteRegister(false, chipAddr, CoreRegisterControl, coreRegCtrlVal)
+	if err != nil {
+		return 0, err
+	}
+	coreRegVal, chip, reg, err := c.GetResponse()
+	if err != nil {
+		return 0, err
+	}
+	if chipAddr != chip {
+		return 0, fmt.Errorf("bad chipAddr")
+	}
+	if byte(CoreRegisterValue) != reg {
+		return 0, fmt.Errorf("bad regAddr")
+	}
+	if uint16(coreRegVal>>16) != coreID {
+		return 0, fmt.Errorf("bad coreID")
+	}
+	return uint16(coreRegVal & 0xffff), nil
+}
 
+func (c *Chain) ReadAllCoreRegisters(chipAddr byte, coreID uint16) error {
+	chipIndex, err := c.chipIndex(chipAddr)
+	if err != nil {
+		return err
+	}
+	if coreID >= uint16(c.asics[chipIndex].coreNum()) {
+		return fmt.Errorf("coreID %d out of range", coreID)
+	}
+	regs := allCoreRegisters
+	for _, reg := range regs {
+		val, err := c.ReadCoreRegister(chipAddr, coreID, reg)
+		if err != nil {
+			fmt.Printf("ReadCoreRegister on reg %v error: %v\n", reg, err)
+			continue
+		}
+		c.asics[chipIndex].coreRegs[reg] = val
+	}
+	return nil
 }
 
 func (c *Chain) DumpChipRegiters(chipIndex int, debug bool) error {
@@ -95,6 +170,11 @@ func (c *Chain) DumpChipRegiters(chipIndex int, debug bool) error {
 	for _, addr := range allRegisters {
 		if val, exist := c.asics[chipIndex].regs[addr]; exist {
 			dumpAsicReg(addr, val, debug)
+		}
+	}
+	for _, id := range allCoreRegisters {
+		if val, exist := c.asics[chipIndex].coreRegs[id]; exist {
+			dumpCoreReg(id, val, debug)
 		}
 	}
 	return nil

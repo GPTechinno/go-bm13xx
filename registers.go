@@ -163,23 +163,6 @@ func dumpAsicReg(regAddr RegAddr, regVal uint32, debug bool) {
 		fmt.Printf("  BIT[23:16] TM2 = 0x%02X\n", (regVal>>16)&0xff)
 		fmt.Printf("  BIT[15:8]  TM1 = 0x%02X\n", (regVal>>8)&0xff)
 		fmt.Printf("  BIT[7:0]   TM0 = 0x%02X\n", regVal&0xff)
-	case CoreRegisterControl:
-		fmt.Printf("Core Register Control : 0x%08X\n", regVal)
-		fmt.Printf("  BIT[31]    WR_RD#_MSB? = %d\n", (regVal>>31)&0x01)
-		fmt.Printf("  BIT[30:16] Always0x7e00? = %04X\n", (regVal>>16)&0x7fff)
-		fmt.Printf("  BIT[15]    WR_RD#_LSB? = %d\n", (regVal>>15)&0x01)
-		fmt.Printf("  BIT[14:12] Always3? = %d\n", (regVal>>12)&0x07)
-		fmt.Printf("  BIT[11:8]  CORE_REG_ID = %d\n", (regVal>>8)&0x0f)
-		fmt.Printf("  BIT[7:0]   CORE_REG_VAL = 0x%02X\n", regVal&0xff)
-		dumpCoreReg(CoreRegID((regVal>>8)&0x0f), uint16(regVal&0xff), debug)
-		if (regVal>>15)&0x01 == 0 { // Read Core Register
-			lastCoreRegID = CoreRegID((regVal >> 8) & 0x0f)
-		}
-	case CoreRegisterValue:
-		fmt.Printf("Core Register Value : 0x%08X\n", regVal)
-		fmt.Printf("  BIT[31:16] CORE_ID = 0x%04X\n", (regVal>>16)&0xffff)
-		fmt.Printf("  BIT[15:0]  CORE_REG_VAL = 0x%04X\n", regVal&0xffff)
-		dumpCoreReg(lastCoreRegID, uint16(regVal&0xffff), debug)
 	case MiscControl:
 		fmt.Printf("Misc Control : 0x%08X\n", regVal)
 		if debug {
@@ -247,6 +230,23 @@ func dumpAsicReg(regAddr RegAddr, regVal uint32, debug bool) {
 		fmt.Printf("  BIT[0]     CO_RELAY_EN = %01X\n", regVal&0x01)
 	case TicketMask2:
 		fmt.Printf("Ticket Mask2 : 0x%08X\n", regVal)
+	case CoreRegisterControl:
+		fmt.Printf("Core Register Control : 0x%08X\n", regVal)
+		fmt.Printf("  BIT[31]    WR_RD#_MSB? = %d\n", (regVal>>31)&0x01)
+		fmt.Printf("  BIT[30:16] Always0x7e00? = %04X\n", (regVal>>16)&0x7fff)
+		fmt.Printf("  BIT[15]    WR_RD#_LSB? = %d\n", (regVal>>15)&0x01)
+		fmt.Printf("  BIT[14:12] Always3? = %d\n", (regVal>>12)&0x07)
+		fmt.Printf("  BIT[11:8]  CORE_REG_ID = %d\n", (regVal>>8)&0x0f)
+		fmt.Printf("  BIT[7:0]   CORE_REG_VAL = 0x%02X\n", regVal&0xff)
+		dumpCoreReg(CoreRegID((regVal>>8)&0x0f), uint16(regVal&0xff), debug)
+		if (regVal>>15)&0x01 == 0 { // Read Core Register
+			lastCoreRegID = CoreRegID((regVal >> 8) & 0x0f)
+		}
+	case CoreRegisterValue:
+		fmt.Printf("Core Register Value : 0x%08X\n", regVal)
+		fmt.Printf("  BIT[31:16] CORE_ID = 0x%04X\n", (regVal>>16)&0xffff)
+		fmt.Printf("  BIT[15:0]  CORE_REG_VAL = 0x%04X\n", regVal&0xffff)
+		dumpCoreReg(lastCoreRegID, uint16(regVal&0xffff), debug)
 	case ExternalTemperatureSensorRead:
 		fmt.Printf("External Temperature Sensor Read : 0x%08X\n", regVal)
 		fmt.Printf("  BIT[31:24] LOCAL_TEMP_ADDR = 0x%02X\n", (regVal>>24)&0xff)
