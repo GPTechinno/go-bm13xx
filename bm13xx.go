@@ -27,11 +27,12 @@ func (a Asic) coreNum() byte {
 type Chain struct {
 	port   io.ReadWriter
 	is139x bool
+	clk    uint32
 	asics  []Asic
 }
 
-func NewChain(port io.ReadWriter, is139x bool) *Chain {
-	c := &Chain{port: port, is139x: is139x}
+func NewChain(port io.ReadWriter, is139x bool, clk uint32) *Chain {
+	c := &Chain{port: port, is139x: is139x, clk: clk}
 	return c
 }
 
@@ -160,6 +161,52 @@ func (c *Chain) ReadAllCoreRegisters(chipAddr byte, coreID uint16) error {
 		}
 		c.asics[chipIndex].coreRegs[reg] = val
 	}
+	return nil
+}
+
+func (c *Chain) SetBaudrate(baud uint32) error {
+	if baud < 115200 || baud > 7000000 {
+		return fmt.Errorf("bad baudrate, accepted range [115200:7000000]")
+	}
+	if len(c.asics) == 0 {
+		return fmt.Errorf("no asic found")
+	}
+	baseClk := c.clk
+	if baud > 3000000 {
+		// LOCKED | PLLEN | FBDIV = 112 | REFDIV = 1 | POSTDIV1 = 1 | POSTDIV2 = 1
+		// PLL3 = 25MHz * 112 = 2.8GHz
+		c.WriteRegister(true, 0, PLL3Parameter, 0xc0700111)
+		c.WriteRegister(true, 0, PLL3Parameter, 0xc0700111)
+		// PLL3_DIV4 = 6 | CLKO_DIV = 15
+		// uart baseClk is PLL3 / (DIV4 + 1) = 2.8GHz / (6 + 1) = 400MHz
+		c.WriteRegister(true, 0, FastUARTConfiguration, 0x600000f)
+		baseClk = 400000000
+	}
+	// TODO : calculate divider based on baseClk and baud
+	divider := uint32(baseClk / baud)
+	bt8d_4_0 := divider & 0x1f
+	bt8d_8_5 := (divider >> 5) & 0x0f
+	miscCtrl, exist := c.asics[0].regs[MiscControl]
+	if !exist {
+		// Use first asic in chain to read MiscControl register value
+		c.ReadRegister(false, 0, MiscControl)
+		val, _, reg, err := c.GetResponse()
+		if err != nil {
+			return err
+		}
+		c.asics[0].regs[RegAddr(reg)] = val
+		if reg == byte(MiscControl) {
+			miscCtrl = val
+		} else {
+			return fmt.Errorf("unexpected register")
+		}
+	}
+	miscCtrl = miscCtrl&0xf0fee0ff | bt8d_4_0<<8 | bt8d_8_5<<24
+	if baud > 3000000 {
+		miscCtrl |= 1 << 16 // BCLK_SEL = 1
+	}
+	// Apply the new baudrate settings to all asics in chain
+	c.WriteRegister(true, 0, MiscControl, miscCtrl)
 	return nil
 }
 

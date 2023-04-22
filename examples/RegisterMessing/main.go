@@ -24,7 +24,7 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	chain := bm13xx.NewChain(p, true)
+	chain := bm13xx.NewChain(p, true, 25000000)
 	chain.Enumerate()
 	// chain.Inactive()
 	time.Sleep(time.Second)
