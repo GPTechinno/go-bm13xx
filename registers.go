@@ -19,17 +19,17 @@ var lastCoreRegID CoreRegID
 var allCoreRegisters []CoreRegID = []CoreRegID{ClockDelayCtrl, ProcessMonitorCtrl, ProcessMonitorData,
 	CoreError, CoreEnable, HashClockCtrl, HashClockCounter, SweepClockCtrl}
 
-func dumpCoreReg(regID CoreRegID, regVal uint16, debug bool) {
+func DumpCoreReg(regID CoreRegID, regVal uint16, debug bool) {
 	switch regID {
 	case ClockDelayCtrl:
 		fmt.Printf("  Clock Delay Control : 0x%04X\n", regVal)
 		if debug {
 			fmt.Printf("    BIT[15:8] Reserved = %02X\n", (regVal>>8)&0xff)
 		}
-		fmt.Printf("    BIT[7:6] CCDLY_SEL = %01X\n", (regVal>>6)&0x03)
-		fmt.Printf("    BIT[5:4] PWTH_SEL = %01X\n", (regVal>>4)&0x03)
-		fmt.Printf("    BIT[3] HASH_CLKEN = %01X\n", (regVal>>3)&0x01)
-		fmt.Printf("    BIT[2] MMEN = %01X\n", (regVal>>2)&0x01)
+		fmt.Printf("    BIT[7:6] CCDLY_SEL = %d\n", (regVal>>6)&0x03)
+		fmt.Printf("    BIT[5:4] PWTH_SEL = %d\n", (regVal>>4)&0x03)
+		fmt.Printf("    BIT[3] HASH_CLKEN = %d\n", (regVal>>3)&0x01)
+		fmt.Printf("    BIT[2] MMEN = %d\n", (regVal>>2)&0x01)
 		if debug {
 			fmt.Printf("    BIT[1] Reserved = %01X\n", (regVal>>1)&0x01)
 		}
@@ -134,7 +134,7 @@ var allRegisters []RegAddr = []RegAddr{ChipAddress, HashRate, PLL0Parameter, Chi
 	Pll2Divider, Pll3Divider, ClockOrderControl0, ClockOrderControl1, ClockOrderStatus, FrequencySweepControl1,
 	GoldenNonceForSweepReturn, ReturnedGroupPatternStatus, NonceReturnedTimeout, ReturnedSinglePatternStatus}
 
-func dumpAsicReg(regAddr RegAddr, regVal uint32, debug bool) {
+func DumpAsicReg(regAddr RegAddr, regVal uint32, debug bool) {
 	switch regAddr {
 	case ChipAddress:
 		fmt.Printf("Chip Address : 0x%08X\n", regVal)
@@ -147,7 +147,8 @@ func dumpAsicReg(regAddr RegAddr, regVal uint32, debug bool) {
 		fmt.Printf("  BIT[30:0] HASHRATE = 0x%08X\n", regVal&0x7fffffff)
 	case PLL0Parameter:
 		fmt.Printf("PLL0 Parameter : 0x%08X\n", regVal)
-		dumpPLLParam(regVal, debug)
+		multiplier := dumpPLLParam(regVal, debug)
+		fmt.Printf("  PLL0 Frequency : %d MHz\n", uint32(25*multiplier))
 	case ChipNonceOffset:
 		fmt.Printf("Chip Nonce Offset : 0x%08X\n", regVal)
 		fmt.Printf("  BIT[31] CNOV = %01X\n", (regVal>>31)&0x01)
@@ -165,9 +166,10 @@ func dumpAsicReg(regAddr RegAddr, regVal uint32, debug bool) {
 		fmt.Printf("  BIT[7:0]   TM0 = 0x%02X\n", regVal&0xff)
 	case MiscControl:
 		fmt.Printf("Misc Control : 0x%08X\n", regVal)
+		bt8d_8_5 := (regVal >> 24) & 0x0f
 		if debug {
 			fmt.Printf("  BIT[31:23] Reserved = 0x%01X\n", (regVal>>28)&0x0f)
-			fmt.Printf("  BIT[27:24] BT8D_8_5 = 0x%01X\n", (regVal>>24)&0x0f)
+			fmt.Printf("  BIT[27:24] BT8D_8_5 = 0x%01X\n", bt8d_8_5)
 			fmt.Printf("  BIT[23]    Reserved = %01X\n", (regVal>>23)&0x01)
 		}
 		fmt.Printf("  BIT[22]    CORE_SRST = %01X\n", (regVal>>22)&0x01)
@@ -179,10 +181,11 @@ func dumpAsicReg(regAddr RegAddr, regVal uint32, debug bool) {
 		fmt.Printf("  BIT[15]    RET_ERR_NONCE = %01X\n", (regVal>>15)&0x01)
 		fmt.Printf("  BIT[14]    RFS = %01X\n", (regVal>>14)&0x01)
 		fmt.Printf("  BIT[13]    INV_CLKO = %01X\n", (regVal>>13)&0x01)
+		bt8d_4_0 := (regVal >> 8) & 0x1f
 		if debug {
-			fmt.Printf("  BIT[12:8]  BT8D_4_0 = 0x%01X\n", (regVal>>8)&0x0f)
+			fmt.Printf("  BIT[12:8]  BT8D_4_0 = 0x%01X\n", bt8d_4_0)
 		}
-		fmt.Printf("  calculated BT8D = %d (chip_divider)\n", (regVal>>8)&0x0f+32*(regVal>>24)&0x0f)
+		fmt.Printf("  calculated BT8D = %d (chip_divider)\n", (bt8d_8_5<<5)+bt8d_4_0)
 		fmt.Printf("  BIT[7]     RET_WORK_ERR_FLAG = %01X\n", (regVal>>7)&0x01)
 		fmt.Printf("  BIT[6:4]   TFS = %01X\n", (regVal>>4)&0x07)
 		if debug {
@@ -192,10 +195,11 @@ func dumpAsicReg(regAddr RegAddr, regVal uint32, debug bool) {
 	case SomeTempRelated:
 		fmt.Printf("Some Temperature Related : 0x%08X\n", regVal)
 		fmt.Printf("  BIT[31]    SOMETHING = %01X\n", (regVal>>31)&0x01)
-		fmt.Printf("  BIT[30:25] SOMETHING = %01X\n", (regVal>>25)&0x01)
+		fmt.Printf("  BIT[30:27] Reserved? = %01X\n", (regVal>>27)&0x0f)
+		fmt.Printf("  BIT[26:25] SOMETHING = %01X\n", (regVal>>25)&0x03)
 		fmt.Printf("  BIT[24]    SOMETHING = %01X\n", (regVal>>24)&0x01)
 		fmt.Printf("  BIT[23:17] SOMETHING = %02X\n", (regVal>>17)&0x3f)
-		fmt.Printf("  BIT[16]    SOMETHING = %01X\n", (regVal>>16)&0x01)
+		fmt.Printf("  BIT[16]    Reserved? = %01X\n", (regVal>>16)&0x01)
 		fmt.Printf("  BIT[15:8]  REG = %02X\n", (regVal>>8)&0xff)
 		fmt.Printf("  BIT[7:0]   TEMP_SENSOR_TYPE = %02X\n", regVal&0xff)
 	case OrderedClockEnable:
@@ -233,20 +237,21 @@ func dumpAsicReg(regAddr RegAddr, regVal uint32, debug bool) {
 	case CoreRegisterControl:
 		fmt.Printf("Core Register Control : 0x%08X\n", regVal)
 		fmt.Printf("  BIT[31]    WR_RD#_MSB? = %d\n", (regVal>>31)&0x01)
-		fmt.Printf("  BIT[30:16] Always0x7e00? = %04X\n", (regVal>>16)&0x7fff)
+		fmt.Printf("  BIT[30:24] Always0x7e? = 0x%02X\n", (regVal>>24)&0x7f)
+		fmt.Printf("  BIT[23:16] CORE_ID = %d\n", (regVal>>16)&0xff)
 		fmt.Printf("  BIT[15]    WR_RD#_LSB? = %d\n", (regVal>>15)&0x01)
 		fmt.Printf("  BIT[14:12] Always3? = %d\n", (regVal>>12)&0x07)
 		fmt.Printf("  BIT[11:8]  CORE_REG_ID = %d\n", (regVal>>8)&0x0f)
 		fmt.Printf("  BIT[7:0]   CORE_REG_VAL = 0x%02X\n", regVal&0xff)
-		dumpCoreReg(CoreRegID((regVal>>8)&0x0f), uint16(regVal&0xff), debug)
+		DumpCoreReg(CoreRegID((regVal>>8)&0x0f), uint16(regVal&0xff), debug)
 		if (regVal>>15)&0x01 == 0 { // Read Core Register
 			lastCoreRegID = CoreRegID((regVal >> 8) & 0x0f)
 		}
 	case CoreRegisterValue:
 		fmt.Printf("Core Register Value : 0x%08X\n", regVal)
-		fmt.Printf("  BIT[31:16] CORE_ID = 0x%04X\n", (regVal>>16)&0xffff)
+		fmt.Printf("  BIT[31:16] CORE_ID = %d\n", (regVal>>16)&0xffff)
 		fmt.Printf("  BIT[15:0]  CORE_REG_VAL = 0x%04X\n", regVal&0xffff)
-		dumpCoreReg(lastCoreRegID, uint16(regVal&0xffff), debug)
+		DumpCoreReg(lastCoreRegID, uint16(regVal&0xffff), debug)
 	case ExternalTemperatureSensorRead:
 		fmt.Printf("External Temperature Sensor Read : 0x%08X\n", regVal)
 		fmt.Printf("  BIT[31:24] LOCAL_TEMP_ADDR = 0x%02X\n", (regVal>>24)&0xff)
@@ -294,13 +299,16 @@ func dumpAsicReg(regAddr RegAddr, regVal uint32, debug bool) {
 		fmt.Printf("  BIT[15:0]  TMOUT = 0x%04X\n", regVal&0xffff)
 	case PLL1Parameter:
 		fmt.Printf("PLL1 Parameter : 0x%08X\n", regVal)
-		dumpPLLParam(regVal, debug)
+		multiplier := dumpPLLParam(regVal, debug)
+		fmt.Printf("  PLL1 Frequency : %d MHz\n", uint32(25*multiplier))
 	case PLL2Parameter:
 		fmt.Printf("PLL2 Parameter : 0x%08X\n", regVal)
-		dumpPLLParam(regVal, debug)
+		multiplier := dumpPLLParam(regVal, debug)
+		fmt.Printf("  PLL2 Frequency : %d MHz\n", uint32(25*multiplier))
 	case PLL3Parameter:
 		fmt.Printf("PLL3 Parameter : 0x%08X\n", regVal)
-		dumpPLLParam(regVal, debug)
+		multiplier := dumpPLLParam(regVal, debug)
+		fmt.Printf("  PLL3 Frequency : %d MHz\n", uint32(25*multiplier))
 	case OrderedClockMonitor:
 		fmt.Printf("Ordered Clock Monitor : 0x%08X\n", regVal)
 		fmt.Printf("  BIT[31]    START = 0x%01X\n", (regVal>>31)&0x01)
@@ -313,6 +321,7 @@ func dumpAsicReg(regAddr RegAddr, regVal uint32, debug bool) {
 		}
 		fmt.Printf("  BIT[15:0]  CLK_COUNT = 0x%04X\n", regVal&0xffff)
 	case Pll0Divider:
+		fmt.Printf("Pll0 Divider : 0x%08X\n", regVal)
 		dumpPLLDiv(regVal, debug)
 	case Pll1Divider:
 		fmt.Printf("Pll1 Divider : 0x%08X\n", regVal)
@@ -354,7 +363,7 @@ func dumpAsicReg(regAddr RegAddr, regVal uint32, debug bool) {
 		if debug {
 			fmt.Printf("  BIT[23:21] Reserved = %01X\n", (regVal>>21)&0x07)
 		}
-		fmt.Printf("  BIT[20:16] SWEEP_ST_ADDR = 0x%02X\n", (regVal>>21)&0x07)
+		fmt.Printf("  BIT[20:16] SWEEP_ST_ADDR = 0x%02X\n", (regVal>>16)&0x07)
 		if debug {
 			fmt.Printf("  BIT[15:14] Reserved = %01X\n", (regVal>>14)&0x03)
 		}
@@ -385,43 +394,51 @@ func dumpAsicReg(regAddr RegAddr, regVal uint32, debug bool) {
 	}
 }
 
-func dumpPLLParam(regVal uint32, debug bool) {
-	fmt.Printf("  BIT[31] LOCKED = %01X\n", (regVal>>31)&0x01)
-	fmt.Printf("  BIT[30] PLLEN = %01X\n", (regVal>>30)&0x01)
+func dumpPLLParam(regVal uint32, debug bool) float32 {
+	fmt.Printf("  BIT[31] LOCKED = %d\n", (regVal>>31)&0x01)
+	pllEn := (regVal >> 30) & 0x01
+	fmt.Printf("  BIT[30] PLLEN = %d\n", pllEn)
 	if debug {
 		fmt.Printf("  BIT[29:28] Reserved = %01X\n", (regVal>>28)&0x03)
 	}
-	fmt.Printf("  BIT[27:16] FBDIV = 0x%03X\n", (regVal>>16)&0xfff)
+	fbdiv := (regVal >> 16) & 0xfff
+	fmt.Printf("  BIT[27:16] FBDIV = %d\n", fbdiv)
 	if debug {
 		fmt.Printf("  BIT[15:14] Reserved = %01X\n", (regVal>>14)&0x03)
 	}
-	fmt.Printf("  BIT[13:8] REFDIV = 0x%02X\n", (regVal>>8)&0x3f)
+	refdiv := (regVal >> 8) & 0x3f
+	fmt.Printf("  BIT[13:8] REFDIV = %d\n", refdiv)
 	if debug {
 		fmt.Printf("  BIT[7] Reserved = %01X\n", (regVal>>7)&0x01)
 	}
-	fmt.Printf("  BIT[6:4] POSTDIV1 = %01X\n", (regVal>>4)&0x07)
+	postdiv1 := (regVal >> 4) & 0x07
+	fmt.Printf("  BIT[6:4] POSTDIV1 = %d\n", postdiv1)
 	if debug {
 		fmt.Printf("  BIT[3] Reserved = %01X\n", (regVal>>3)&0x01)
 	}
-	fmt.Printf("  BIT[2:0] POSTDIV2 = %01X\n", regVal&0x07)
+	postdiv2 := regVal & 0x07
+	fmt.Printf("  BIT[2:0] POSTDIV2 = %d\n", postdiv2)
+	if pllEn == 1 {
+		return float32(fbdiv / (refdiv * postdiv1 * postdiv2))
+	}
+	return 0
 }
 
 func dumpPLLDiv(regVal uint32, debug bool) {
-	fmt.Printf("Pll0 Divider : 0x%08X\n", regVal)
 	if debug {
 		fmt.Printf("  BIT[31:28] Reserved = 0x%01X\n", (regVal>>28)&0x0f)
 	}
-	fmt.Printf("  BIT[27:24] PLL_DIV3 = 0x%01X\n", (regVal>>24)&0x0f)
+	fmt.Printf("  BIT[27:24] PLL_DIV3 = %d\n", (regVal>>24)&0x0f)
 	if debug {
 		fmt.Printf("  BIT[23:20] Reserved = 0x%01X\n", (regVal>>20)&0x0f)
 	}
-	fmt.Printf("  BIT[19:16] PLL_DIV2 = 0x%01X\n", (regVal>>16)&0x0f)
+	fmt.Printf("  BIT[19:16] PLL_DIV2 = %d\n", (regVal>>16)&0x0f)
 	if debug {
 		fmt.Printf("  BIT[15:12] Reserved = 0x%01X\n", (regVal>>12)&0x0f)
 	}
-	fmt.Printf("  BIT[11:8]  PLL_DIV1 = 0x%01X\n", (regVal>>8)&0x0f)
+	fmt.Printf("  BIT[11:8]  PLL_DIV1 = %d\n", (regVal>>8)&0x0f)
 	if debug {
 		fmt.Printf("  BIT[7:4]   Reserved = 0x%01X\n", (regVal>>4)&0x0f)
 	}
-	fmt.Printf("  BIT[3:0]   PLL_DIV0 = 0x%01X\n", regVal&0x0f)
+	fmt.Printf("  BIT[3:0]   PLL_DIV0 = %d\n", regVal&0x0f)
 }
