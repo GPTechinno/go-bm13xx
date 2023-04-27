@@ -94,7 +94,7 @@ const (
 	HashCountingNumber            RegAddr = 0x10
 	TicketMask                    RegAddr = 0x14
 	MiscControl                   RegAddr = 0x18
-	SomeTempRelated               RegAddr = 0x1C
+	I2CControl                    RegAddr = 0x1C
 	OrderedClockEnable            RegAddr = 0x20
 	FastUARTConfiguration         RegAddr = 0x28
 	UARTRelay                     RegAddr = 0x2C
@@ -127,7 +127,7 @@ const (
 )
 
 var allRegisters []RegAddr = []RegAddr{ChipAddress, HashRate, PLL0Parameter, ChipNonceOffset, HashCountingNumber,
-	TicketMask, MiscControl, SomeTempRelated, OrderedClockEnable, FastUARTConfiguration, UARTRelay, TicketMask2,
+	TicketMask, MiscControl, I2CControl, OrderedClockEnable, FastUARTConfiguration, UARTRelay, TicketMask2,
 	CoreRegisterControl, CoreRegisterValue, ExternalTemperatureSensorRead,
 	ErrorFlag, NonceErrorCounter, NonceOverflowCounter, AnalogMuxControl, IoDriverStrenghtConfiguration,
 	TimeOut, PLL1Parameter, PLL2Parameter, PLL3Parameter, OrderedClockMonitor, Pll0Divider, Pll1Divider,
@@ -192,16 +192,16 @@ func DumpAsicReg(regAddr RegAddr, regVal uint32, debug bool) {
 			fmt.Printf("  BIT[3:2]   Reserved = %01X\n", (regVal>>2)&0x03)
 		}
 		fmt.Printf("  BIT[1:0]   HASHRATE_TWS = %01X\n", regVal&0x03)
-	case SomeTempRelated:
+	case I2CControl:
 		fmt.Printf("Some Temperature Related : 0x%08X\n", regVal)
-		fmt.Printf("  BIT[31]    SOMETHING = %01X\n", (regVal>>31)&0x01)
-		fmt.Printf("  BIT[30:27] Reserved? = %01X\n", (regVal>>27)&0x0f)
-		fmt.Printf("  BIT[26:25] SOMETHING = %01X\n", (regVal>>25)&0x03)
-		fmt.Printf("  BIT[24]    SOMETHING = %01X\n", (regVal>>24)&0x01)
-		fmt.Printf("  BIT[23:17] SOMETHING = %02X\n", (regVal>>17)&0x3f)
-		fmt.Printf("  BIT[16]    Reserved? = %01X\n", (regVal>>16)&0x01)
-		fmt.Printf("  BIT[15:8]  REG = %02X\n", (regVal>>8)&0xff)
-		fmt.Printf("  BIT[7:0]   TEMP_SENSOR_TYPE = %02X\n", regVal&0xff)
+		fmt.Printf("  BIT[31]    BUSY = %d\n", (regVal>>31)&0x01)
+		fmt.Printf("  BIT[30:27] Reserved = %01X\n", (regVal>>27)&0x0f)
+		fmt.Printf("  BIT[26:25] SOME_FLAGS = %01X\n", (regVal>>25)&0x03)
+		fmt.Printf("  BIT[24]    DO_CMD = %01X\n", (regVal>>24)&0x01)
+		fmt.Printf("  BIT[23:17] I2C_ADDR = %02X\n", (regVal>>17)&0x3f)
+		fmt.Printf("  BIT[16]    RD#_WR = %01X\n", (regVal>>16)&0x01)
+		fmt.Printf("  BIT[15:8]  I2C_REG_ADDR = %02X\n", (regVal>>8)&0xff)
+		fmt.Printf("  BIT[7:0]   I2C_REG_VAL = %02X\n", regVal&0xff)
 	case OrderedClockEnable:
 		fmt.Printf("Ordered Clock Enable : 0x%08X\n", regVal)
 		if debug {

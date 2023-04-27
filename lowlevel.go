@@ -3,6 +3,7 @@ package bm13xx
 import (
 	"encoding/binary"
 	"fmt"
+	"time"
 
 	"github.com/snksoft/crc"
 )
@@ -50,6 +51,7 @@ func (c *Chain) sendCommand(cmd cmd, all bool, chipAddr byte, regAddr byte, data
 
 func (c *Chain) SetChipAddr(chipAddr byte) error {
 	_, err := c.sendCommand(setChipAddr, false, chipAddr, 0, nil)
+	time.Sleep(30 * time.Millisecond)
 	return err
 }
 
@@ -92,6 +94,7 @@ func (c *Chain) GetResponse() (uint32, byte, byte, error) {
 
 func (c *Chain) Inactive() error {
 	_, err := c.sendCommand(chainInactive, true, 0, 0, nil)
+	time.Sleep(30 * time.Millisecond)
 	return err
 }
 
@@ -100,13 +103,13 @@ type Midstate [32]byte
 func (c *Chain) SendJob(jobID byte, startingNonce uint32, nBits uint32, nTime uint32, merkelRoot uint32, midstates []Midstate) error {
 	var data []byte
 	value := make([]byte, 4)
-	binary.BigEndian.PutUint32(value, startingNonce)
+	binary.LittleEndian.PutUint32(value, startingNonce)
 	data = append(data, value...)
-	binary.BigEndian.PutUint32(value, nBits)
+	binary.LittleEndian.PutUint32(value, nBits)
 	data = append(data, value...)
-	binary.BigEndian.PutUint32(value, nTime)
+	binary.LittleEndian.PutUint32(value, nTime)
 	data = append(data, value...)
-	binary.BigEndian.PutUint32(value, merkelRoot)
+	binary.LittleEndian.PutUint32(value, merkelRoot)
 	data = append(data, value...)
 	for _, midstate := range midstates {
 		data = append(data, midstate[:]...)

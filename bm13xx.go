@@ -6,6 +6,18 @@ import (
 	"time"
 )
 
+type Nonce uint32
+
+// Every nonce returned by chip (except those sent by opencore) encodes address of the
+// chip and core that computed it, because of the way they divide the search space.
+func (n Nonce) Chip() byte {
+	return byte((n >> 2) & 0x3f)
+}
+
+func (n Nonce) Core() byte {
+	return byte((n >> 24) & 0x7f)
+}
+
 type Asic struct {
 	Regs     map[RegAddr]uint32
 	CoreRegs map[CoreRegID]uint16
@@ -70,12 +82,12 @@ func (c *Chain) chipIndex(chipAddr byte) (int, error) {
 	return 0, fmt.Errorf("not found")
 }
 
-func (c *Chain) Init(increment byte) error {
+func (c *Chain) Init(increment byte) (int, error) {
 	if increment == 0 {
-		return fmt.Errorf("increment must be greater than 0")
+		return 0, fmt.Errorf("increment must be greater than 0")
 	}
 	if len(c.Asics) > 0 {
-		return fmt.Errorf("already enumerated")
+		return 0, fmt.Errorf("already enumerated")
 	}
 	// Enumerate the chips
 	c.ReadRegister(true, 0, ChipAddress)
@@ -85,13 +97,13 @@ func (c *Chain) Init(increment byte) error {
 			if err == io.EOF {
 				break
 			}
-			return err
+			return 0, err
 		}
 		if regAddr != byte(ChipAddress) {
-			return fmt.Errorf("bad regAddr")
+			return 0, fmt.Errorf("bad regAddr")
 		}
 		if chipAddr != 0x00 {
-			return fmt.Errorf("bad chipAddr")
+			return 0, fmt.Errorf("bad chipAddr")
 		}
 		a := Asic{}
 		a.Regs = make(map[RegAddr]uint32)
@@ -102,39 +114,51 @@ func (c *Chain) Init(increment byte) error {
 	// ChainInactive 3 times
 	for i := 0; i < 3; i++ {
 		c.Inactive()
-		time.Sleep(30 * time.Millisecond)
 	}
 	// Gives new ChipAddresses
 	if len(c.Asics)-1*int(increment) > 255 {
-		return fmt.Errorf("too many chips or too big increment")
+		return 0, fmt.Errorf("too many chips or too big increment")
 	}
 	newChipAddr := byte(0)
 	for i := range c.Asics {
 		err := c.SetChipAddr(newChipAddr)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		c.Asics[i].Regs[ChipAddress] += uint32(newChipAddr)
 		newChipAddr += increment
-		time.Sleep(30 * time.Millisecond)
 	}
-	time.Sleep(120 * time.Millisecond)
-	// Init Ordered Clock
+	// Init gekko style
 	c.WriteRegister(true, 0, ClockOrderControl0, 0)
+	time.Sleep(10 * time.Millisecond)
 	c.WriteRegister(true, 0, ClockOrderControl1, 0)
 	time.Sleep(100 * time.Millisecond)
-	c.WriteRegister(true, 0, OrderedClockEnable, 0)
-	time.Sleep(100 * time.Millisecond)
-	c.WriteRegister(true, 0, OrderedClockEnable, 0xFF)
+	c.WriteRegister(true, 0, OrderedClockEnable, 1)
+	time.Sleep(50 * time.Millisecond)
+	c.WriteRegister(true, 0, CoreRegisterControl, 0x80008074)
 	time.Sleep(10 * time.Millisecond)
-	c.WriteRegister(true, 0, CoreRegisterControl, 0x800080B4)
-	time.Sleep(5 * time.Millisecond)
-	c.WriteRegister(true, 0, TicketMask, 0xFC)
-	time.Sleep(10 * time.Millisecond)
-	// c.WriteRegister(true, 0, MiscControl, 0x1A01)
-	c.WriteRegister(true, 0, MiscControl, 0x2001)
+	c.WriteRegister(true, 0, TicketMask, 0xF0)
 	time.Sleep(100 * time.Millisecond)
-	return nil
+	c.WriteRegister(true, 0, MiscControl, 0x6131)
+	return 1500000, nil
+
+	// Init T17 style
+	// time.Sleep(120 * time.Millisecond)
+	// c.WriteRegister(true, 0, ClockOrderControl0, 0)
+	// c.WriteRegister(true, 0, ClockOrderControl1, 0)
+	// time.Sleep(100 * time.Millisecond)
+	// c.WriteRegister(true, 0, OrderedClockEnable, 0)
+	// time.Sleep(100 * time.Millisecond)
+	// c.WriteRegister(true, 0, OrderedClockEnable, 0xFF)
+	// time.Sleep(10 * time.Millisecond)
+	// c.WriteRegister(true, 0, CoreRegisterControl, 0x800080B4)
+	// time.Sleep(5 * time.Millisecond)
+	// c.WriteRegister(true, 0, TicketMask, 0xFC)
+	// time.Sleep(10 * time.Millisecond)
+	// // c.WriteRegister(true, 0, MiscControl, 0x1A01)
+	// c.WriteRegister(true, 0, MiscControl, 0x2001)
+	// time.Sleep(100 * time.Millisecond)
+	// return 3000000, nil
 }
 
 func (c *Chain) ReadAllRegisters(chipIndex int) error {
